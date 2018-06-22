@@ -1,0 +1,7 @@
+rpcSecurityGroupIds:
+  - sg-72161807
+  - sg-aeb7e8db
+rpcSubnetIds:
+  - subnet-832afde7
+  - subnet-95237cb9
+  - subnet-23d5c86b

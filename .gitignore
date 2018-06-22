@@ -20,3 +20,6 @@ var/
 .serverless
 
 node_modules
+.venv
+.pytest_cache
+*__pycache__

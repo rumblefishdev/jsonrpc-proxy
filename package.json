@@ -9,6 +9,10 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "install": "^0.11.0",
+    "serverless": "^1.27.3",
+    "serverless-dynamodb-local": "^0.2.30",
+    "serverless-offline": "^3.25.4",
     "serverless-python-requirements": "^4.1.0"
   }
 }

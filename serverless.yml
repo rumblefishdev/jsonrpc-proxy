@@ -23,6 +23,7 @@ provider:
   environment:
     DYNAMODB_TABLE: ${self:service}-${opt:stage, self:provider.stage}
   stage: dev
+  profile: the0cean
   region: us-east-1
   iamRoleStatements:
     - Effect: Allow
@@ -42,21 +43,28 @@ provider:
 
 plugins:
   - serverless-python-requirements
+  - serverless-dynamodb-local
+  - serverless-offline
 
 custom:
   pythonRequirements:
     dockerizePip: non-linux
-
+  dynamodb:
+    start:
+      port: 8000
+      inMemory: true
+      migrate: true
+      seed: false
 
 # you can add packaging information here
 package:
-#  include:
-#    - include-me.py
-#    - include-me-dir/**
+  include:
+    - handlers/**
   exclude:
-    - node_modules
+    - node_modules/**
     - package.json
     - package-lock.json
+    - test/**
 
 functions:
   add_backend:
@@ -65,7 +73,20 @@ functions:
       - http:
           path: backends
           method: post
+  list_backends:
+    handler: handlers.backends.list_backends
+    events:
+      - http:
+          path: backends
+          method: get
 
+  get_block_numbers:
+    handler: handlers.eth_nodes.get_block_numbers
+    events:
+      - schedule: rate(1 minute)
+    vpc:
+      securityGroupIds: ${file(./config.${self:provider.stage}.yml):rpcSecurityGroupIds}
+      subnetIds: ${file(./config.${self:provider.stage}.yml):rpcSubnetIds}
 
 #    The following are a few example events you can configure
 #    NOTE: Please make sure to change your handler code to work with those events
@@ -99,7 +120,7 @@ functions:
 
 resources:
   Resources:
-    TodosDynamoDbTable:
+    DynamoDbTable:
       Type: 'AWS::DynamoDB::Table'
       DeletionPolicy: Retain
       Properties:
@@ -107,19 +128,6 @@ resources:
           -
             AttributeName: url
             AttributeType: S
-          -
-            AttributeName: when_last_checked
-            AttributeType: S
-          -
-            AttributeName: when_added
-            AttributeType: S
-          -
-            AttributeName: is_healthy
-            AttributeType: BOOL
-          -
-            AttributeName: is_leader
-            AttributeType: BOOL
-
         KeySchema:
           -
             AttributeName: url
