@@ -1,4 +1,3 @@
-import json
 from datetime import datetime
 from os import path, sys
 
@@ -7,6 +6,7 @@ from schema import Schema, SchemaError
 if True:
     sys.path.append(path.dirname(path.abspath(__file__)))
     from lib.db import get_table
+    from lib import json
 
 
 add_backend_schema_request = Schema({

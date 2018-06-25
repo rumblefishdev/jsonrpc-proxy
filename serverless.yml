@@ -22,9 +22,11 @@ provider:
   runtime: python3.6
   environment:
     DYNAMODB_TABLE: ${self:service}-${opt:stage, self:provider.stage}
+    DIFF_TOLERANCE: '10'
   stage: dev
   profile: the0cean
   region: us-east-1
+  logRetentionInDays: 7
   iamRoleStatements:
     - Effect: Allow
       Action:
