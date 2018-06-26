@@ -23,6 +23,9 @@ provider:
   environment:
     DYNAMODB_TABLE: ${self:service}-${opt:stage, self:provider.stage}
     DIFF_TOLERANCE: '10'
+    UPLOAD_SERVICE_CONFIG_ARN: "arn:aws:lambda:${self:provider.region}:#{AWS::AccountId}:function:${self:service}-${self:provider.stage}-upload_service_config"
+    NGINX_CONFIG_BUCKET_NAME: ${self:service}-${opt:stage, self:provider.stage}
+
   stage: dev
   profile: the0cean
   region: us-east-1
@@ -42,11 +45,19 @@ provider:
       Action:
         - cloudwatch:PutMetricData
       Resource: "*"
+    - Effect: Allow
+      Action:
+        - s3:PutObject
+      Resource: "arn:aws:s3:::${self:provider.environment.NGINX_CONFIG_BUCKET_NAME}/*"
+    - Effect: "Allow"
+      Action:
+        - "lambda:InvokeFunction"
+      Resource: "${self:provider.environment.UPLOAD_SERVICE_CONFIG_ARN}"
 
 plugins:
   - serverless-python-requirements
   - serverless-dynamodb-local
-  - serverless-offline
+  - serverless-pseudo-parameters
 
 custom:
   pythonRequirements:
@@ -90,34 +101,9 @@ functions:
       securityGroupIds: ${file(./config.${self:provider.stage}.yml):rpcSecurityGroupIds}
       subnetIds: ${file(./config.${self:provider.stage}.yml):rpcSubnetIds}
 
-#    The following are a few example events you can configure
-#    NOTE: Please make sure to change your handler code to work with those events
-#    Check the event documentation for details
-#    events:
-#      - http:
-#          path: users/create
-#          method: get
-#      - s3: ${env:BUCKET}
-#      - schedule: rate(10 minutes)
-#      - sns: greeter-topic
-#      - stream: arn:aws:dynamodb:region:XXXXXX:table/foo/stream/1970-01-01T00:00:00.000
-#      - alexaSkill: amzn1.ask.skill.xx-xx-xx-xx
-#      - alexaSmartHome: amzn1.ask.skill.xx-xx-xx-xx
-#      - iot:
-#          sql: "SELECT * FROM 'some_topic'"
-#      - cloudwatchEvent:
-#          event:
-#            source:
-#              - "aws.ec2"
-#            detail-type:
-#              - "EC2 Instance State-change Notification"
-#            detail:
-#              state:
-#                - pending
-#      - cloudwatchLog: '/aws/lambda/hello'
-#      - cognitoUserPool:
-#          pool: MyUserPool
-#          trigger: PreSignUp
+  upload_service_config:
+    handler: handlers.service.upload_service_config
+
 
 
 resources:
@@ -138,3 +124,7 @@ resources:
           ReadCapacityUnits: 1
           WriteCapacityUnits: 1
         TableName: ${self:provider.environment.DYNAMODB_TABLE}
+    NginxConfigBucket:
+      Type: 'AWS::S3::Bucket'
+      Properties:
+        BucketName: ${self:provider.environment.NGINX_CONFIG_BUCKET_NAME}

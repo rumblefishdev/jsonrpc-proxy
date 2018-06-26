@@ -10,6 +10,12 @@ url1 = 'http://url1'
 url2 = 'http://url2'
 
 
+@pytest.fixture
+def mock_trigger_service():
+    with mock.patch('handlers.eth_nodes.trigger_service_update') as m:
+        yield m
+
+
 def set_state(url, block_number, leader=False, is_healthy=True):
     get_table().put_item(
         Item={
@@ -45,7 +51,7 @@ def clear_all_items():
         table.delete_item(Key={'url': item['url']})
 
 
-def test_get_block_numbers_timeout():
+def test_get_block_numbers_timeout(mock_trigger_service):
     clear_all_items()
     set_state(url1, block_number=10, leader=True)
     set_state(url2, block_number=5, leader=False)
@@ -58,8 +64,10 @@ def test_get_block_numbers_timeout():
     expect(url1, healthy=True, block_number=15)
     expect(url2, healthy=False, block_number=5)
 
+    assert mock_trigger_service.called
 
-def test_get_block_numbers_recover():
+
+def test_get_block_numbers_recover(mock_trigger_service):
     clear_all_items()
     set_state(url1, block_number=10, leader=True)
     set_state(url2, block_number=5, leader=False, is_healthy=False)
@@ -72,8 +80,10 @@ def test_get_block_numbers_recover():
     expect(url1, healthy=True, block_number=15)
     expect(url2, healthy=True, block_number=15)
 
+    assert mock_trigger_service.called
 
-def test_get_block_numbers_delayed_nonhealthy():
+
+def test_get_block_numbers_delayed_nonhealthy(mock_trigger_service):
     clear_all_items()
     set_state(url1, block_number=25, leader=True)
     set_state(url2, block_number=10, leader=False)
@@ -86,8 +96,10 @@ def test_get_block_numbers_delayed_nonhealthy():
     expect(url1, healthy=True, block_number=25)
     expect(url2, healthy=False, block_number=10)
 
+    assert mock_trigger_service.called
 
-def test_get_block_numbers_no_leader():
+
+def test_get_block_numbers_no_leader(mock_trigger_service):
     clear_all_items()
     set_state(url1, block_number=25, leader=False)
     set_state(url2, block_number=10, leader=False)
@@ -99,3 +111,21 @@ def test_get_block_numbers_no_leader():
 
     expect(url1, healthy=True, block_number=25)
     expect(url2, healthy=False, block_number=10)
+
+    assert mock_trigger_service.called
+
+
+def test_get_block_doesnt_update_when_no_need(mock_trigger_service):
+    clear_all_items()
+    set_state(url1, block_number=25, leader=False)
+    set_state(url2, block_number=25, leader=False)
+    with aioresponses() as responses:
+        responses.post(url1, payload={'result': hex(25)})
+        responses.post(url2, payload={'result': hex(25)})
+
+        get_block_numbers(event={}, context={})
+
+    expect(url1, healthy=True, block_number=25)
+    expect(url2, healthy=True, block_number=25)
+
+    assert not mock_trigger_service.called

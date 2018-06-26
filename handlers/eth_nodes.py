@@ -5,6 +5,7 @@ import time
 from os import path, sys
 
 import aiohttp
+import boto3
 
 if True:
     sys.path.append(path.dirname(path.abspath(__file__)))
@@ -49,6 +50,17 @@ def get_block_numbers(event, context):
             Key={'url': backend['url']},
             UpdateExpression='SET block_number = :vblockNumber, is_healthy = :vis_healthy',
             ExpressionAttributeValues=updates)
+
+    if needs_global_update:
+        trigger_service_update()
+
+
+def trigger_service_update():
+    logger.info('Triggering update of service')
+    boto3.client('lambda').invoke(
+        FunctionName=os.environ['UPLOAD_SERVICE_CONFIG_ARN'],
+        InvocationType='Event',
+    )
 
 
 def get_leader(backends):
