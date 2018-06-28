@@ -13,6 +13,7 @@
     "serverless": "^1.27.3",
     "serverless-dynamodb-local": "^0.2.30",
     "serverless-pseudo-parameters": "^1.6.0",
-    "serverless-python-requirements": "^4.1.0"
+    "serverless-python-requirements": "^4.1.0",
+    "serverless-resources-env": "^0.3.1"
   }
 }

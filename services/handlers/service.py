@@ -51,6 +51,7 @@ def empty_config():
         server {{
           listen 80;
           location / {{
+            return 404;
           }}
         }}
         '''

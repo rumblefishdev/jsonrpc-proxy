@@ -21,10 +21,10 @@ provider:
   name: aws
   runtime: python3.6
   environment:
-    DYNAMODB_TABLE: ${self:service}-${opt:stage, self:provider.stage}
+    DYNAMODB_TABLE: ${self:custom.stackName}
     DIFF_TOLERANCE: '10'
     UPLOAD_SERVICE_CONFIG_ARN: "arn:aws:lambda:${self:provider.region}:#{AWS::AccountId}:function:${self:service}-${self:provider.stage}-upload_service_config"
-    NGINX_CONFIG_BUCKET_NAME: ${self:service}-${opt:stage, self:provider.stage}
+    NGINX_CONFIG_BUCKET_NAME: ${self:custom.stackName}
 
   stage: dev
   profile: the0cean
@@ -39,7 +39,7 @@ provider:
         - dynamodb:PutItem
         - dynamodb:UpdateItem
         - dynamodb:DeleteItem
-      Resource: "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE}"
+      Resource: "arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE}"
 
     - Effect: Allow
       Action:
@@ -58,8 +58,11 @@ plugins:
   - serverless-python-requirements
   - serverless-dynamodb-local
   - serverless-pseudo-parameters
+  - serverless-resources-env
 
 custom:
+  stackName: ${self:service}-${opt:stage, self:provider.stage}
+  config: ${file(./config.${self:provider.stage}.yml)}
   pythonRequirements:
     dockerizePip: non-linux
   dynamodb:
@@ -98,8 +101,8 @@ functions:
     events:
       - schedule: rate(1 minute)
     vpc:
-      securityGroupIds: ${file(./config.${self:provider.stage}.yml):rpcSecurityGroupIds}
-      subnetIds: ${file(./config.${self:provider.stage}.yml):rpcSubnetIds}
+      securityGroupIds: ${self:custom.config.RpcSecurityGroupIds}
+      subnetIds: ${self:custom.config.RpcSubnetIds}
 
   upload_service_config:
     handler: handlers.service.upload_service_config
@@ -128,3 +131,130 @@ resources:
       Type: 'AWS::S3::Bucket'
       Properties:
         BucketName: ${self:provider.environment.NGINX_CONFIG_BUCKET_NAME}
+
+    LogGroup:
+      Type: AWS::Logs::LogGroup
+      Properties:
+        LogGroupName: ${self:custom.stackName}-logs
+
+    TaskRole:
+      Type: AWS::IAM::Role
+      Properties:
+        Path: /
+        RoleName: ${self:custom.stackName}-task-role
+        AssumeRolePolicyDocument: |
+          {
+            "Statement": [{
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "ecs-tasks.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }]
+          }
+
+    TaskDefinition:
+      Type: AWS::ECS::TaskDefinition
+      Properties:
+        Family: ${self:custom.stackName}-rpc-proxy
+        TaskRoleArn:
+          "Ref": TaskRole
+        NetworkMode: bridge
+        ContainerDefinitions:
+          - Image: ${self:custom.config.ProxyContainerArn}
+            Essential: true
+            Memory: 64
+            MemoryReservation: 32
+            Name: nginx-proxy
+            PortMappings:
+              - ContainerPort: 80
+                HostPort: 0
+                Protocol: tcp
+            LogConfiguration:
+              LogDriver: awslogs
+              Options:
+                awslogs-group:
+                  "Ref": LogGroup
+                awslogs-region: ${self:provider.region}
+                awslogs-stream-prefix: nginx-proxy
+
+    ListenerRule:
+      Type: AWS::ElasticLoadBalancingV2::ListenerRule
+      Properties:
+        ListenerArn: ${self:custom.config.LoadBalancerListener}
+        Priority: ${self:custom.config.ProxyContrainerPriority}
+        Conditions:
+          - Field: host-header
+            Values:
+              - ${self:custom.config.Host}
+        Actions:
+          - TargetGroupArn:
+              "Ref": TargetGroup
+            Type: forward
+
+    TargetGroup:
+      Type: AWS::ElasticLoadBalancingV2::TargetGroup
+      Properties:
+        Name: ${self:custom.stackName}
+        HealthCheckPath: "/"
+        HealthCheckProtocol: HTTP
+        HealthyThresholdCount: 2
+        Matcher:
+          HttpCode: 404
+        Port: 80
+        Protocol: HTTP
+        TargetType: instance
+        VpcId: ${self:custom.config.VpcId}
+        TargetGroupAttributes:
+          - Key: "deregistration_delay.timeout_seconds"
+            Value: "10"
+
+    ServiceRole:
+      Type: AWS::IAM::Role
+      Properties:
+        Path: /
+        RoleName: ${self:custom.stackName}-service-role
+        AssumeRolePolicyDocument: |
+          {
+            "Statement": [{
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "ecs.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }]
+          }
+        Policies:
+        - PolicyName: ecs-service
+          PolicyDocument: |
+            {
+              "Statement": [{
+                "Effect": "Allow",
+                "Action": [
+                  "elasticloadbalancing:Describe*",
+                  "elasticloadbalancing:DeregisterInstancesFromLoadBalancer",
+                  "elasticloadbalancing:RegisterInstancesWithLoadBalancer",
+                  "ec2:Describe*",
+                  "ec2:AuthorizeSecurityGroupIngress",
+                  "elasticloadbalancing:RegisterTargets",
+                  "elasticloadbalancing:DeregisterTargets"
+                ],
+                "Resource": "*"
+              }]
+            }
+
+    Service:
+      Type: AWS::ECS::Service
+      Properties:
+        ServiceName: ${self:custom.stackName}
+        Cluster: ${self:custom.config.ECSCluster}
+        DesiredCount: 1
+        TaskDefinition:
+          "Ref": TaskDefinition
+        Role:
+          "Ref": ServiceRole
+        LoadBalancers:
+          - TargetGroupArn:
+              "Ref": TargetGroup
+            ContainerName: nginx-proxy
+            ContainerPort: 80
