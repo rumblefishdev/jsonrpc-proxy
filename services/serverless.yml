@@ -22,12 +22,14 @@ provider:
   runtime: python3.6
   environment:
     DYNAMODB_TABLE: ${self:custom.stackName}
-    DIFF_TOLERANCE: '10'
+    STACK_NAME: ${self:custom.stackName}
+    DIFF_TOLERANCE: "10"
     NGINX_CONFIG_BUCKET_NAME: ${self:custom.stackName}
     TASK_DEFINITION_FAMILY: ${self:custom.stackName}-rpc-proxy
     CLUSTER_ARN: ${self:custom.config.ECSCluster}
+    CLOUDWATCH_NAMESPACE: "OceanX"
 
-  stage: dev
+  stages: dev
   profile: the0cean
   region: us-east-1
   logRetentionInDays: 7

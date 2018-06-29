@@ -1,4 +1,3 @@
-import copy
 import logging
 import os
 import textwrap
@@ -27,7 +26,7 @@ PASSTHROUGH_ATTRIBUTES = [
 
 
 def update_service(event, context):
-    logging.basicConfig(level='INFO')
+    logging.basicConfig(level=logging.INFO)
     s3_event = event['Records'][0]['s3']
     bucket_name = s3_event['bucket']['name']
     key = s3_event['object']['key']

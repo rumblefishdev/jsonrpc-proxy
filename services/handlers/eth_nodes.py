@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 import logging
 import os
 import time
@@ -42,6 +43,7 @@ def get_block_numbers(event, context):
             is_healthy = False
 
         updates[':vis_healthy'] = is_healthy
+        backend['is_healthy'] = is_healthy
 
         if was_healthy is not is_healthy:
             needs_global_update = True
@@ -53,6 +55,85 @@ def get_block_numbers(event, context):
 
     if needs_global_update:
         trigger_service_update()
+
+    push_metrics(backends, leader_block_number)
+
+
+def push_metrics(backends, leader_block_number):
+    cloudwatch = boto3.client('cloudwatch')
+    namespace = os.environ['CLOUDWATCH_NAMESPACE']
+    now = datetime.datetime.now()
+    metrics = []
+    metrics.extend([
+        {
+            'MetricName': 'ETH node block number',
+            'Timestamp': now,
+            'Value': backend['block_number'],
+            'Unit': 'None',
+            'StorageResolution': 60,
+            'Dimensions': [
+                {
+                    'Name': 'Node URL',
+                    'Value': backend['url']
+                }
+            ]
+        }
+        for backend in backends
+        if backend['block_number']
+    ])
+    metrics.extend([
+        {
+            'MetricName': 'eth_getBlockNumber response time',
+            'Timestamp': now,
+            'Value': backend['elapsed'],
+            'Unit': 'Microseconds',
+            'StorageResolution': 60,
+            'Dimensions': [
+                {
+                    'Name': 'Node URL',
+                    'Value': backend['url']
+                }
+            ]
+        }
+        for backend in backends
+        if backend['block_number']
+    ])
+    healthy_count = sum(backend['is_healthy'] for backend in backends)
+    metrics.append(
+        {
+            'MetricName': 'Number of healthy ETH nodes',
+            'Timestamp': now,
+            'Value': healthy_count,
+            'Unit': 'None',
+            'StorageResolution': 60,
+            'Dimensions': [
+                {
+                    'Name': 'Stack name',
+                    'Value': os.environ['STACK_NAME']
+                }
+            ]
+        }
+    )
+    if leader_block_number:
+        metrics.extend([
+            {
+                'MetricName': 'ETH node block difference',
+                'Timestamp': now,
+                'Value': leader_block_number - backend['block_number'],
+                'Unit': 'None',
+                'StorageResolution': 60,
+                'Dimensions': [
+                    {
+                        'Name': 'Node URL',
+                        'Value': backend['url']
+                    }
+                ]
+            }
+            for backend in backends
+            if backend['block_number'] and not backend['is_leader']
+        ])
+
+    cloudwatch.put_metric_data(Namespace=namespace, MetricData=metrics)
 
 
 def trigger_service_update():
@@ -114,6 +195,6 @@ async def fetch_block_number(session, backend):
         'previous_block_number': backend.get('block_number', 0),
         'block_number': block_number,
         'is_leader': backend['is_leader'],
-        'elapsed': time.time() - when_started,
+        'elapsed': int((time.time() - when_started) * 1000),
         'was_healthy': backend['is_healthy']
     }
