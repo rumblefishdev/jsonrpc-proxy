@@ -23,8 +23,9 @@ provider:
   environment:
     DYNAMODB_TABLE: ${self:custom.stackName}
     DIFF_TOLERANCE: '10'
-    UPLOAD_SERVICE_CONFIG_ARN: "arn:aws:lambda:${self:provider.region}:#{AWS::AccountId}:function:${self:service}-${self:provider.stage}-upload_service_config"
     NGINX_CONFIG_BUCKET_NAME: ${self:custom.stackName}
+    TASK_DEFINITION_FAMILY: ${self:custom.stackName}-rpc-proxy
+    CLUSTER_ARN: ${self:custom.config.ECSCluster}
 
   stage: dev
   profile: the0cean
@@ -52,13 +53,25 @@ provider:
     - Effect: "Allow"
       Action:
         - "lambda:InvokeFunction"
-      Resource: "${self:provider.environment.UPLOAD_SERVICE_CONFIG_ARN}"
+      Resource: "arn:aws:lambda:${self:provider.region}:#{AWS::AccountId}:function:${self:service}-${self:provider.stage}-*"
+    - Effect: "Allow"
+      Action:
+        - ecs:*
+      Resource: "*"
+    - Effect: "Allow"
+      Action:
+        - iam:PassRole
+      Resource:
+        Fn::GetAtt:
+          - TaskRole
+          - Arn
+
 
 plugins:
   - serverless-python-requirements
   - serverless-dynamodb-local
-  - serverless-pseudo-parameters
   - serverless-resources-env
+  - serverless-pseudo-parameters
 
 custom:
   stackName: ${self:service}-${opt:stage, self:provider.stage}
@@ -103,17 +116,30 @@ functions:
     vpc:
       securityGroupIds: ${self:custom.config.RpcSecurityGroupIds}
       subnetIds: ${self:custom.config.RpcSubnetIds}
+    custom:
+      env-resources:
+        - UploadUnderscoreserviceUnderscoreconfigLambdaFunction
 
   upload_service_config:
     handler: handlers.service.upload_service_config
 
+  update_service:
+    handler: handlers.service.update_service
+    events:
+      - s3:
+          bucket: ${self:provider.environment.NGINX_CONFIG_BUCKET_NAME}
+          event: s3:ObjectCreated:*
+          rules:
+            - suffix: .conf
+    custom:
+      env-resources:
+        - Service
 
 
 resources:
   Resources:
     DynamoDbTable:
       Type: 'AWS::DynamoDB::Table'
-      DeletionPolicy: Retain
       Properties:
         AttributeDefinitions:
           -
@@ -127,10 +153,6 @@ resources:
           ReadCapacityUnits: 1
           WriteCapacityUnits: 1
         TableName: ${self:provider.environment.DYNAMODB_TABLE}
-    NginxConfigBucket:
-      Type: 'AWS::S3::Bucket'
-      Properties:
-        BucketName: ${self:provider.environment.NGINX_CONFIG_BUCKET_NAME}
 
     LogGroup:
       Type: AWS::Logs::LogGroup
@@ -152,11 +174,21 @@ resources:
               "Action": "sts:AssumeRole"
             }]
           }
+        Policies:
+        - PolicyName: fetch-config
+          PolicyDocument: |
+            {
+              "Statement": [{
+                "Effect": "Allow",
+                "Action": "s3:getObject",
+                "Resource": "arn:aws:s3:::${self:provider.environment.NGINX_CONFIG_BUCKET_NAME}/*"
+              }]
+            }
 
     TaskDefinition:
       Type: AWS::ECS::TaskDefinition
       Properties:
-        Family: ${self:custom.stackName}-rpc-proxy
+        Family: ${self:provider.environment.TASK_DEFINITION_FAMILY}
         TaskRoleArn:
           "Ref": TaskRole
         NetworkMode: bridge

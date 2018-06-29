@@ -58,7 +58,7 @@ def get_block_numbers(event, context):
 def trigger_service_update():
     logger.info('Triggering update of service')
     boto3.client('lambda').invoke(
-        FunctionName=os.environ['UPLOAD_SERVICE_CONFIG_ARN'],
+        FunctionName=os.environ['CF_UploadUnderscoreserviceUnderscoreconfigLambdaFunction'],
         InvocationType='Event',
     )
 
