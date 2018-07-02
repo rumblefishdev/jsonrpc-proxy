@@ -55,7 +55,7 @@ provider:
     - Effect: "Allow"
       Action:
         - "lambda:InvokeFunction"
-      Resource: "arn:aws:lambda:${self:provider.region}:#{AWS::AccountId}:function:${self:service}-${self:provider.stage}-*"
+      Resource: "arn:aws:lambda:${self:provider.region}:#{AWS::AccountId}:function:${self:service}-${self:custom.stage}-*"
     - Effect: "Allow"
       Action:
         - ecs:*
@@ -76,8 +76,9 @@ plugins:
   - serverless-pseudo-parameters
 
 custom:
-  stackName: ${self:service}-${opt:stage, self:provider.stage}
-  config: ${file(./config.${self:provider.stage}.yml)}
+  stage: ${opt:stage, self:provider.stage}
+  stackName: ${self:service}-${self:custom.stage}
+  config: ${file(./config.${self:custom.stage}.yml)}
   pythonRequirements:
     dockerizePip: non-linux
   dynamodb:
@@ -100,16 +101,9 @@ package:
 functions:
   add_backend:
     handler: handlers.backends.add_backend
-    events:
-      - http:
-          path: backends
-          method: post
+
   list_backends:
     handler: handlers.backends.list_backends
-    events:
-      - http:
-          path: backends
-          method: get
 
   get_block_numbers:
     handler: handlers.eth_nodes.get_block_numbers
