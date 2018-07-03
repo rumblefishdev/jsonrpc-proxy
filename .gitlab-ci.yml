@@ -1,0 +1,12 @@
+stages:
+  - test
+
+
+test:
+  image: 944832740039.dkr.ecr.us-east-1.amazonaws.com/docker-compose
+  stage: test
+  script:
+    - docker-compose --project-name=$CI_BUILD_ID build tests-ci
+    - docker-compose --project-name=$CI_BUILD_ID run --rm tests-ci
+  after_script:
+    - docker-compose --project-name=$CI_BUILD_ID down
