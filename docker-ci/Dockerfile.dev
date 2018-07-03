@@ -7,5 +7,5 @@ RUN bash -c "\
 
 ADD ./services /app
 WORKDIR /app
-RUN npm install
+RUN npm install && npx sls dynamodb install
 RUN pip3.6 install -r requirements.txt -r requirements-dev.txt
