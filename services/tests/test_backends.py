@@ -25,7 +25,7 @@ def event(body):
 
 def test_add_backend(event, body):
     response = backends.add_backend(event, context={})
-    assert response['statusCode'] == 201
+    assert response['statusCode'] == 201, response
 
     db = backends.get_table()
     entry = db.get_item(Key={'url': body['url']})
