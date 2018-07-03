@@ -1,0 +1,29 @@
+version: "2"
+services:
+  dynamodb:
+    build:
+      context: .
+      dockerfile: ./docker-ci/Dockerfile.dev
+    command: npx sls dynamodb start
+
+  tests:
+    build:
+      context: .
+      dockerfile: ./docker-ci/Dockerfile.dev
+    volumes:
+      - ./services:/app
+    links:
+      - dynamodb
+    environment:
+      - DYNAMODB_LOCAL_ENDPOINT=http://dynamodb:8000
+    command: pytest tests
+
+  tests-ci:
+    build:
+      context: .
+      dockerfile: ./docker-ci/Dockerfile.dev
+    links:
+      - dynamodb
+    environment:
+      - DYNAMODB_LOCAL_ENDPOINT=http://dynamodb:8000
+    command: pytest tests

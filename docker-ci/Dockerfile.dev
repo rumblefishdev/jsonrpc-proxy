@@ -1,0 +1,11 @@
+FROM python:3.6
+
+ADD ./docker-ci/setup_8.x /tmp/setup_8.x
+RUN bash -c "\
+  bash /tmp/setup_8.x &&\
+  apt-get install -y default-jre nodejs"
+
+ADD ./services /app
+WORKDIR /app
+RUN npm install && npx sls dynamodb install
+RUN pip3.6 install -r requirements.txt -r requirements-dev.txt

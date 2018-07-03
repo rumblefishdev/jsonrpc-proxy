@@ -13,12 +13,6 @@ def from_iso(iso, fmt="%Y-%m-%dT%H:%M:%S.%f"):
     return datetime.strptime(iso, fmt)
 
 
-@pytest.fixture(autouse=True)
-def environ(monkeypatch):
-    monkeypatch.setenv('DYNAMODB_TABLE', 'jsonrpc-proxy-dev')
-    monkeypatch.setenv('DYNAMODB_LOCAL_ENDPOINT',  'http://localhost:8000')
-
-
 @pytest.fixture
 def body():
     return {'url': 'http://my.rpc.local:8545', 'is_leader': False}
@@ -31,7 +25,7 @@ def event(body):
 
 def test_add_backend(event, body):
     response = backends.add_backend(event, context={})
-    assert response['statusCode'] == 201
+    assert response['statusCode'] == 201, response
 
     db = backends.get_table()
     entry = db.get_item(Key={'url': body['url']})
