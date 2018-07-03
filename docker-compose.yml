@@ -4,9 +4,7 @@ services:
     build:
       context: .
       dockerfile: ./docker-ci/Dockerfile.dev
-    volumes:
-      - ./services:/app
-    command: sls dynamodb start
+    command: npx sls dynamodb start
 
   tests:
     build:
