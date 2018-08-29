@@ -1,0 +1,18 @@
+VpcId: {VPC ID}
+RpcSecurityGroupIds:
+  # # This corresponds to security groups created by parity CF stack that allow access to RPC interface
+  # # for example:
+  # - sg-72161807
+  # - sg-aeb7e8db
+
+RpcSubnetIds:
+  # # List 3 private subnets of your VPC
+  # # for example:
+  # - subnet-832afde7
+  # - subnet-95237cb9
+  # - subnet-23d5c86b
+ProxyContainerArn: {AWS_ACCOUNT_ID}.dkr.ecr.{AWS_REGION}.amazonaws.com/jsonrpc-proxy:latest
+ProxyContrainerPriority: 1
+ECSCluster: arn:aws:ecs:{AWS_REGION}:{AWS_ACCOUNT_ID}:cluster/{CLUSTER_NAME}
+Host: {DNS_NAME_FOR_RPC_PROXY}
+LoadBalancerListener: # ARN of ELB to hook to
