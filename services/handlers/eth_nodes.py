@@ -1,6 +1,7 @@
 import asyncio
 import datetime
 import logging
+import json
 import os
 import time
 from os import path, sys
@@ -169,6 +170,13 @@ async def fetch_block_numbers(backends):
 timeout = aiohttp.ClientTimeout(total=2)
 
 
+async def decode_response(response):
+    if response.content_type == 'application/json':
+        return await response.json()
+    elif response.content_type == 'text/plain':
+        return json.loads(await response.text())
+
+
 async def fetch_block_number(session, backend):
     data = {
         'jsonrpc': '2.0',
@@ -182,7 +190,7 @@ async def fetch_block_number(session, backend):
     try:
         async with session.post(url, json=data, timeout=timeout) as response:
             if response.status == 200:
-                response_body = await response.json()
+                response_body = await decode_response(response)
                 block_number = int(response_body['result'], 16)
             else:
                 response_text = await response.text()

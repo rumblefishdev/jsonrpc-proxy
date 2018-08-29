@@ -89,6 +89,26 @@ def test_get_block_numbers_recover(mock_trigger_service):
     assert mock_trigger_service.called
 
 
+def test_get_block_numbers_decodes_various_content_types(mock_trigger_service):
+    clear_all_items()
+    set_state(url1, block_number=10, leader=True)
+    set_state(url2, block_number=5, leader=False, is_healthy=False)
+    with aioresponses() as responses:
+        responses.post(
+            url1, payload={'result': hex(15)},
+            headers={'content-type': 'application/json'})
+        responses.post(
+            url2, payload={'result': hex(15)},
+            headers={'content-type': 'text/plain'})
+
+        get_block_numbers(event={}, context={})
+
+    expect(url1, healthy=True, block_number=15)
+    expect(url2, healthy=True, block_number=15)
+
+    assert mock_trigger_service.called
+
+
 def test_get_block_numbers_delayed_nonhealthy(mock_trigger_service):
     clear_all_items()
     set_state(url1, block_number=25, leader=True)
