@@ -1,24 +1,23 @@
 # How to build your own Infura on AWS using serverless framework
 
 In [one of previous articles](https://www.rumblefishdev.com/how-to-run-ethereum-mainnet-node-on-aws/)
-we've demonstrated how to run a single mainnet Parity node on AWS. For many use case having one parity
-node will be sufficient, it surely beats having to rely on external public infrastracture, like Infura.
+we've demonstrated how to run a single mainnet Parity node on AWS. In many cases having one Parity
+node will be sufficient, it surely beats a need to rely on external public infrastracture, like Infura.
 
 ## Drawbacks of having only one node
 
-However still in many situations one node will simply not be enough. I can think of several reasons
-of why you may need more than one.
+However in many situations one node is simply not enough. I can think of several reasons why you may need more than one node.
 
 1. **Downtime**. If for any reason node has to be taken down for maintenance there will be no node left.
-There will be downtime when for example there is need to upgrade version of Parity.
+There will be downtime when for example there is a need to upgrade a version of Parity.
 
 2. **Falling out of sync**. Parity is great but not flaweless. It may occasionally fall out of sync
 for various reasons. Having multiple nodes allows us to temporarly re-route traffic from nodes which
-have fallen behind and only query nodes which are in-sync.
+have fallen behind and query nodes which are in-sync.
 
 3. **Distributing load**. There is only a certain level of requests/second on json-rpc that a single
-Parity node can sustain. Over this level json-rpc interface becomes slow and Parity node falls out of
-sync. This is especially important if node(s) are used from web dapp interface and number and you
+Parity node can sustain. Json-rpc interface becomes slow over this level and Parity node falls out of
+sync. This is especially important if node(s) is used from web dapp interface and number, and you
 can observe daily spikes in user engagement.
 
 
@@ -26,24 +25,24 @@ can observe daily spikes in user engagement.
 
 Big picture of what proxy does goes as follows:
 
-1. Keep a list of URL of out Parity node in DynamoDB. There is also a special URL, which we call
-*leader* which points to Infura.
+1. A list of URL of out Parity node should be kept in DynamoDB. There is also a special URL called
+*leader* that points to Infura.
 
-2. Every 60 seconds run `eth_getBlockNumber` on each of the nodes from the list. The result is
+2. `eth_getBlockNumber` should be run on each of the nodes from the list every 60 seconds. The result is
 compared with the *leader*. For the node to be deemed healthy it has to respond and be no more than
 10 blocks behind Infura. The *health status* of each node is saved to DynamoDB.
 
 3. Change of health status of any node triggers regeneration of proxy config. Proxy config is simply
 an nginx `.conf` file that configures an upstream service which load-balances load between our nodes.
-In an event than none of our nodes is healthy the generated config proxies all requests to Infura as
-a fallback. The config is file uploaded to S3 bucket.
+If none of our nodes is healthy the generated config proxies all requests to Infura as
+a fallback. The config file is uploaded to S3 bucket.
 
-4. Uploading config file to S3 bucket triggers update of ECS Service than runs *nginx* container with
+4. Uploading config file to S3 bucket triggers update of ECS Service that runs *nginx* container with
 generated config.
 
 ### Monitoring nodes
 
-The upside of using AWS services is that out-of-box they come with default metrics.
+The upside of using AWS services is that they come with default metrics out-of-box.
 
 #### Requests per second
 
@@ -55,7 +54,7 @@ status codes.
 
 #### Lateness to Infura
 
-Also jsonrpc-proxy stack pushes it's own metrics which shows diff between each node block number
+Also jsonrpc-proxy stack pushes it's own metrics that shows diff between each node block number
 and Infura.
 
 ![Diff to Infura](./docs/images/eth-node-block-difference.png)
@@ -63,7 +62,7 @@ and Infura.
 
 #### Number of healthy nodes
 
-Another custom metric show number of healthy nodes.
+Another custom metric shows number of healthy nodes.
 
 ![Number of healthy nodes](./docs/images/healthy-nodes.png)
 
@@ -75,7 +74,7 @@ The code of our solution can be found in [git repository](https://github.com/rum
 
 ### Build ECR container with nginx
 
-Our service runs `nginx` container on ECS cluster which fetches it's config from S3 bucket. The
+Our service runs `nginx` container on ECS cluster which fetches its config from S3 bucket. The
 image of this service needs to be available on some AWS account as jsonrpc-proxy. You can build
 and upload image with following commands:
 
@@ -83,14 +82,14 @@ and upload image with following commands:
     $ AWS_DEFAULT_PROFILE=yourProfileName bash -x build_and_upload.sh
 
 This will create an ECR repository, build image and push it. In the result you will see the ARN
-of created ECR repository, which you need to put into config file in the following step.
+of created ECR repository that you need to put into config file in the next step.
 
-Above we assume you use named profiles for command-line access. If you use session tokens skip
+Written above assumes that you use named profiles for command-line access. If you use session tokens skip
 the profile part.
 
 ### Create config file
 
-The stack is done so that it re-uses external resources which have to be passed as parameter in
+The stack is done so that it re-uses external resources that have to be passed as parameter in
 the config file. You can start by creating your own config file from the template provided:
 
 
@@ -100,14 +99,13 @@ the config file. You can start by creating your own config file from the templat
 
 Edit the file and specify inside:
 
-* VPC you run in and subnet ids of private subnets.
+* VPC you run in and subnet ids of private subnets
 
-* List the security groups allowing access to all the parity nodes
+* List the security groups allowing access to all the Parity nodes
 
-* ECS Cluster and Application Load Balancer. The stack doesn't create own cluster nor load balancer,
+* ECS Cluster and Application Load Balancer. The stack creates neither own cluster nor load balancer,
 because typically you will not want to pay for dedicated resources just to run `nginx` inside.
-*Please note*: it's necessary that ECS cluster is added to security groups allowing it to access
-the parity nodes.
+*Please note*: it's necessary that ECS cluster is added to security groups allowing it to access Parity nodes
 
 * ERC Image ARN created in previous step
 
@@ -136,7 +134,7 @@ Finally you need to configure your DNS to point the name used by stack to your A
 
 ### Add nodes to monitor
 
-Next step is to actually tell the proxy which nodes to monitor:
+Next step is to actually tell the proxy what nodes to monitor:
 
 
     $ DATA='{"body":"{\"url\":\"https://kovan.infura.io/kb56QStVQWIFv1n5fRfn\",\"is_leader\":true}"}'
@@ -154,7 +152,7 @@ Next step is to actually tell the proxy which nodes to monitor:
     }
 
 
-If everything works fine in a minute you should be able to see that the monitoring kick in and
+If everything works fine in a minute you should be able to see that the monitoring kicks in and
 that the nodes are now healthy:
 
 
